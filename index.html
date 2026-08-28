@@ -1,32 +1,151 @@
-Human Capital as an Alpha Signal
-Quantitative equity portfolio construction and dashboard
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Human Capital Portfolio</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Human Capital as an Alpha Signal</h1>
+    <p class="subtitle">Quantitative equity portfolio construction and dashboard</p>
+  </header>
 
-1. Configuration
-Twelve Data API key 
-Twelve Data key
-Free Basic plan: 8 credits per minute, 800 per day. One symbol costs one credit. Get a key at twelvedata.com.
+  <main class="app-main">
 
-Commentary provider 
-Google Gemini (free tier)
-The provider writes the commentary only. Every number in this dashboard is computed in JavaScript.
+    <section class="panel">
+      <h2>1. Configuration</h2>
 
-Commentary API key 
-Gemini or OpenRouter key
-Gemini keys come from aistudio.google.com. Keys stay in this browser tab and are never stored or committed.
+      <div class="form-grid">
+        <div class="field">
+          <label for="twelvedata-key">Twelve Data API key</label>
+          <input id="twelvedata-key" type="password" placeholder="Twelve Data key" autocomplete="off" />
+          <p class="field-hint">
+            Free Basic plan: 8 credits per minute, 800 per day. One symbol costs one credit.
+            Get a key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a>.
+          </p>
+        </div>
 
-Model id 
-gemini-2.5-flash
-Change this if the provider reports that the model does not exist.
+        <div class="field">
+          <label for="llm-provider">Commentary provider</label>
+          <select id="llm-provider">
+            <option value="gemini" selected>Google Gemini (free tier)</option>
+            <option value="openrouter">OpenRouter (needs credits)</option>
+          </select>
+          <p class="field-hint">
+            The provider writes the commentary only. Every number in this dashboard is computed in JavaScript.
+          </p>
+        </div>
 
-Optimisation method 
-Minimum variance
-Risk free rate (annual, percent) 
-3.5
-Mandate size (USD) 
-1000000
-Position cap (percent) 
-15
-Fetch live data Load bundled snapshot Export snapshot
-No data loaded yet. Fetching all 21 series takes about two minutes because of the free tier rate limit.
+        <div class="field">
+          <label for="llm-key">Commentary API key</label>
+          <input id="llm-key" type="password" placeholder="Gemini or OpenRouter key" autocomplete="off" />
+          <p class="field-hint">
+            Gemini keys come from <a href="https://aistudio.google.com" target="_blank" rel="noopener">aistudio.google.com</a>.
+            Keys stay in this browser tab and are never stored or committed.
+          </p>
+        </div>
 
-Coursework prototype for Generative AI in Finance, WU Executive Academy. Not investment advice. No orders are placed and no client data is held.
+        <div class="field">
+          <label for="llm-model">Model id</label>
+          <input id="llm-model" type="text" value="gemini-2.5-flash" />
+          <p class="field-hint">Change this if the provider reports that the model does not exist.</p>
+        </div>
+
+        <div class="field">
+          <label for="method">Optimisation method</label>
+          <select id="method">
+            <option value="minvar" selected>Minimum variance</option>
+            <option value="maxsharpe">Maximum Sharpe ratio</option>
+            <option value="equal">Equal weight</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="risk-free">Risk free rate (annual, percent)</label>
+          <input id="risk-free" type="number" value="3.5" step="0.1" min="0" max="15" />
+        </div>
+
+        <div class="field">
+          <label for="capital">Mandate size (USD)</label>
+          <input id="capital" type="number" value="1000000" step="50000" min="0" />
+        </div>
+
+        <div class="field">
+          <label for="max-weight">Position cap (percent)</label>
+          <input id="max-weight" type="number" value="15" step="1" min="5" max="100" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="fetch-live" type="button">Fetch live data</button>
+        <button id="load-snapshot" type="button" class="secondary">Load bundled snapshot</button>
+        <button id="save-snapshot" type="button" class="secondary" disabled>Export snapshot</button>
+      </div>
+
+      <p id="status" class="status">No data loaded yet. Fetching all 21 series takes about two minutes because of the free tier rate limit.</p>
+      <div id="progress-log" class="progress-log"></div>
+    </section>
+
+    <section class="panel" id="data-source-panel" hidden>
+      <h2>2. Data provenance</h2>
+      <p id="data-source" class="provenance"></p>
+    </section>
+
+    <section class="panel" id="metrics-panel" hidden>
+      <h2>3. Portfolio metrics</h2>
+      <div id="metrics-cards" class="metric-cards"></div>
+      <div id="metrics-warning"></div>
+      <h3>Comparison</h3>
+      <div id="comparison-table"></div>
+    </section>
+
+    <section class="panel" id="weights-panel" hidden>
+      <h2>4. Optimised weights</h2>
+      <div id="weights-chart"></div>
+      <div id="weights-table"></div>
+    </section>
+
+    <section class="panel" id="performance-panel" hidden>
+      <h2>5. Cumulative performance over the lookback window</h2>
+      <p class="caption">
+        In sample only. The weights were fitted on this same window, so this chart shows fit, not forecast.
+      </p>
+      <div id="performance-chart"></div>
+    </section>
+
+    <section class="panel" id="signals-panel" hidden>
+      <h2>6. Technical signals</h2>
+      <div id="signal-summary"></div>
+      <div id="signals-table"></div>
+    </section>
+
+    <section class="panel" id="correlation-panel" hidden>
+      <h2>7. Correlation matrix</h2>
+      <p class="caption">Daily return correlation over the lookback window. Darker cells move together more.</p>
+      <div id="correlation-chart"></div>
+    </section>
+
+    <section class="panel" id="commentary-panel" hidden>
+      <h2>8. Executive commentary</h2>
+      <button id="generate-commentary" type="button">Generate commentary</button>
+      <p class="ai-label">
+        Generated text. Unverified. The model receives the computed figures and writes prose about them.
+        It performs no calculation, but it can still describe them incorrectly.
+      </p>
+      <div id="commentary"></div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>
+      Coursework prototype for Generative AI in Finance, WU Executive Academy. Not investment advice.
+      No orders are placed and no client data is held.
+    </p>
+  </footer>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
