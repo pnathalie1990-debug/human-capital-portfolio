@@ -1256,7 +1256,16 @@ async function callGemini(apiKey, model) {
         body: JSON.stringify({
             system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: [{ role: 'user', parts: [{ text: buildUserPrompt() }] }],
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
+            // Newer Gemini models spend part of the output budget on internal
+            // reasoning tokens before emitting any text. With a small budget
+            // the reply is truncated mid sentence. Thinking is switched off,
+            // because this task is summarisation of figures already computed,
+            // and the ceiling is raised well above what 300 words needs.
+            generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 4000,
+                thinkingConfig: { thinkingBudget: 0 },
+            },
         }),
     });
     const requestFailed = response.ok === false;
@@ -1265,11 +1274,17 @@ async function callGemini(apiKey, model) {
         throw new Error('Gemini call failed (HTTP ' + response.status + '). ' + detail.slice(0, 300));
     }
     const data = await response.json();
-    const parts = data.candidates && data.candidates[0] && data.candidates[0].content
-        && data.candidates[0].content.parts;
+    const candidate = data.candidates && data.candidates[0];
+    const parts = candidate && candidate.content && candidate.content.parts;
     const noText = parts === undefined || parts === null;
     if (noText === true) {
-        throw new Error('Gemini returned no text. It may have blocked the request.');
+        throw new Error('Gemini returned no text. It may have blocked the request, or spent the whole output budget on reasoning tokens.');
+    }
+    // A truncated reply is worse than an error, because it looks finished.
+    // Say so rather than displaying half a sentence as if it were the answer.
+    const wasTruncated = candidate.finishReason === 'MAX_TOKENS';
+    if (wasTruncated === true) {
+        throw new Error('Gemini hit the output limit and the commentary was cut off. Raise maxOutputTokens in main.js or choose a smaller model.');
     }
     return parts.map(function (p) { return p.text || ''; }).join('');
 }
@@ -1364,5 +1379,5 @@ for (const id of ['method', 'risk-free', 'capital', 'max-weight']) {
 el('llm-provider').addEventListener('change', function () {
     const provider = el('llm-provider').value;
     const useGemini = provider === 'gemini';
-    el('llm-model').value = useGemini === true ? 'gemini-2.5-flash' : 'anthropic/claude-sonnet-5';
+    el('llm-model').value = useGemini === true ? 'gemini-3.6-flash' : 'anthropic/claude-sonnet-5';
 });
