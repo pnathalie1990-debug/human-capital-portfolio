@@ -1256,15 +1256,15 @@ async function callGemini(apiKey, model) {
         body: JSON.stringify({
             system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: [{ role: 'user', parts: [{ text: buildUserPrompt() }] }],
-            // Newer Gemini models spend part of the output budget on internal
-            // reasoning tokens before emitting any text. With a small budget
-            // the reply is truncated mid sentence. Thinking is switched off,
-            // because this task is summarisation of figures already computed,
-            // and the ceiling is raised well above what 300 words needs.
+            // Gemini 3 models spend part of the output budget on internal
+            // reasoning before emitting any text, and unlike the 2.x series
+            // they do not accept a thinkingBudget parameter at all: sending
+            // one is rejected as an invalid argument. The budget is therefore
+            // simply set high enough that reasoning and a 300 word reply both
+            // fit comfortably.
             generationConfig: {
                 temperature: 0.3,
-                maxOutputTokens: 4000,
-                thinkingConfig: { thinkingBudget: 0 },
+                maxOutputTokens: 8000,
             },
         }),
     });
